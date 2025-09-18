@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Bot WebUI - 项目推荐系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        .gradient-bg::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="50" cy="50" r="1" fill="rgba(255,255,255,0.1)"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+            opacity: 0.3;
+        }
+        .card-shadow {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        .btn-primary:hover::before {
+            left: 100%;
+        }
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.4);
+        }
+        .tab-active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            position: relative;
+        }
+        .tab-active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+        .repo-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .repo-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            background: rgba(255, 255, 255, 1);
+        }
+        .preference-card {
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .preference-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        .floating-element {
+            animation: float 6s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        .glassmorphism {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .input-focus {
+            transition: all 0.3s ease;
+        }
+        .input-focus:focus {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .tag-chip {
+            background: linear-gradient(135deg, #667eea20, #764ba220);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            transition: all 0.3s ease;
+        }
+        .tag-chip:hover {
+            background: linear-gradient(135deg, #667eea40, #764ba240);
+            transform: scale(1.05);
+        }
+        .status-indicator {
+            position: relative;
+        }
+        .status-indicator::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 120%;
+            height: 120%;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        .status-indicator.online::before {
+            background: rgba(34, 197, 94, 0.3);
+        }
+        .status-indicator.offline::before {
+            background: rgba(239, 68, 68, 0.3);
+        }
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+        }
+        .loading-dots {
+            display: inline-block;
+        }
+        .loading-dots::after {
+            content: '...';
+            animation: loading 1.5s infinite;
+        }
+        @keyframes loading {
+            0% { content: ''; }
+            25% { content: '.'; }
+            50% { content: '..'; }
+            75% { content: '...'; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans">
+    <!-- 导航栏 -->
+    <nav class="gradient-bg shadow-lg">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center space-x-4">
+                    <div class="floating-element">
+                        <i class="fab fa-github text-white text-2xl"></i>
+                    </div>
+                    <h1 class="text-white text-xl font-bold">GitHub Bot WebUI</h1>
+                    <div class="glassmorphism px-3 py-1 text-xs text-white">
+                        AI推荐系统
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div id="userInfo" class="text-white text-sm hidden">
+                        <span id="username" class="mr-2"></span>
+                        <button onclick="logout()" class="glassmorphism px-4 py-2 rounded-lg text-sm hover:bg-white hover:bg-opacity-30 transition-all duration-300 border border-white border-opacity-30">
+                            <i class="fas fa-sign-out-alt mr-1"></i>登出
+                        </button>
+                    </div>
+                    <div id="loginPrompt" class="text-white text-sm">
+                        请先登录使用功能
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <!-- 登录表单 -->
+        <div id="loginSection" class="max-w-md mx-auto bg-white rounded-lg card-shadow p-6 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">
+                <i class="fas fa-sign-in-alt mr-2"></i>用户登录
+            </h2>
+
+            <!-- 快速登录演示账户 -->
+            <div class="mb-4 p-4 bg-blue-50 rounded-lg">
+                <p class="text-sm text-blue-700 mb-2">🚀 快速体验 - 使用演示账户：</p>
+                <button onclick="quickLogin()" class="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition">
+                    <i class="fas fa-rocket mr-2"></i>使用演示账户登录
+                </button>
+                <p class="text-xs text-blue-600 mt-1">账户：demo@example.com</p>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">邮箱</label>
+                    <input type="email" id="email" class="input-focus w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="your@email.com">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">密码</label>
+                    <input type="password" id="password" class="input-focus w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="密码">
+                </div>
+                <button onclick="login()" class="w-full btn-primary text-white py-2 px-4 rounded-md">
+                    <i class="fas fa-sign-in-alt mr-2"></i>登录
+                </button>
+                <div class="text-center">
+                    <a href="#" onclick="showRegister()" class="text-blue-500 hover:text-blue-700 text-sm">没有账户？点击注册</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 注册表单 -->
+        <div id="registerSection" class="max-w-md mx-auto bg-white rounded-lg card-shadow p-6 mb-8 hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">
+                <i class="fas fa-user-plus mr-2"></i>用户注册
+            </h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+                    <input type="text" id="regUsername" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="用户名">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">邮箱</label>
+                    <input type="email" id="regEmail" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="your@email.com">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">密码</label>
+                    <input type="password" id="regPassword" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="密码">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">时区</label>
+                    <select id="regTimezone" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="Asia/Shanghai">Asia/Shanghai</option>
+                        <option value="Asia/Tokyo">Asia/Tokyo</option>
+                        <option value="America/New_York">America/New_York</option>
+                        <option value="Europe/London">Europe/London</option>
+                    </select>
+                </div>
+                <button onclick="register()" class="w-full btn-primary text-white py-2 px-4 rounded-md">
+                    <i class="fas fa-user-plus mr-2"></i>注册
+                </button>
+                <div class="text-center">
+                    <a href="#" onclick="showLogin()" class="text-blue-500 hover:text-blue-700 text-sm">已有账户？点击登录</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主功能区域 -->
+        <div id="mainContent" class="hidden">
+            <!-- 标签页导航 -->
+            <div class="bg-white rounded-lg card-shadow mb-6">
+                <div class="flex border-b">
+                    <button onclick="showTab('preferences')" id="tab-preferences" class="tab-active px-6 py-3 font-medium text-sm rounded-tl-lg transition">
+                        <i class="fas fa-cog mr-2"></i>推荐偏好
+                    </button>
+                    <button onclick="showTab('recommendations')" id="tab-recommendations" class="px-6 py-3 font-medium text-sm text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-star mr-2"></i>推荐结果
+                    </button>
+                    <button onclick="showTab('history')" id="tab-history" class="px-6 py-3 font-medium text-sm text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-history mr-2"></i>历史记录
+                    </button>
+                    <button onclick="showTab('settings')" id="tab-settings" class="px-6 py-3 font-medium text-sm text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-bell mr-2"></i>通知设置
+                    </button>
+                    <button onclick="showTab('api')" id="tab-api" class="px-6 py-3 font-medium text-sm text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-code mr-2"></i>API设置
+                    </button>
+                </div>
+            </div>
+
+            <!-- 推荐偏好页面 -->
+            <div id="content-preferences" class="tab-content">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- 创建新偏好 -->
+                    <div class="bg-white rounded-lg card-shadow p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                            <i class="fas fa-plus-circle mr-2"></i>创建推荐偏好
+                        </h3>
+                        <form id="preferenceForm" class="space-y-4">
+                            <!-- 模版选择 -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">选择模版</label>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                                    <button type="button" onclick="applyTemplate('ai')" class="template-btn text-left p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition">
+                                        <div class="font-medium text-sm">🤖 AI/机器学习</div>
+                                        <div class="text-xs text-gray-500">人工智能相关项目</div>
+                                    </button>
+                                    <button type="button" onclick="applyTemplate('web')" class="template-btn text-left p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition">
+                                        <div class="font-medium text-sm">🌐 Web开发</div>
+                                        <div class="text-xs text-gray-500">前后端Web项目</div>
+                                    </button>
+                                    <button type="button" onclick="applyTemplate('mobile')" class="template-btn text-left p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition">
+                                        <div class="font-medium text-sm">📱 移动开发</div>
+                                        <div class="text-xs text-gray-500">iOS/Android应用</div>
+                                    </button>
+                                    <button type="button" onclick="applyTemplate('devtools')" class="template-btn text-left p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition">
+                                        <div class="font-medium text-sm">🛠️ 开发工具</div>
+                                        <div class="text-xs text-gray-500">开发效率工具</div>
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">偏好名称</label>
+                                <input type="text" id="prefName" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如：机器学习项目">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">描述</label>
+                                <textarea id="prefDescription" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" rows="2" placeholder="描述您的偏好..."></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">关键词 (用逗号分隔)</label>
+                                <input type="text" id="prefKeywords" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="machine learning, AI, deep learning">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">编程语言 (用逗号分隔)</label>
+                                <input type="text" id="prefLanguages" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Python, JavaScript, Go">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">最小Star数</label>
+                                    <input type="number" id="prefMinStars" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="100">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">最大推荐数</label>
+                                    <input type="number" id="prefMaxRecs" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="10" value="10">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">通知渠道</label>
+                                <div class="flex flex-wrap gap-2">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" value="email" class="mr-2"> 邮件
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" value="telegram" class="mr-2"> Telegram
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" value="slack" class="mr-2"> Slack
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" value="wechat" class="mr-2"> 企业微信
+                                    </label>
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full btn-primary text-white py-2 px-4 rounded-md">
+                                <i class="fas fa-save mr-2"></i>保存偏好
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- 现有偏好列表 -->
+                    <div class="bg-white rounded-lg card-shadow p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold text-gray-800">
+                                <i class="fas fa-list mr-2"></i>我的偏好
+                            </h3>
+                            <button onclick="loadPreferences()" class="text-blue-500 hover:text-blue-700">
+                                <i class="fas fa-refresh mr-1"></i>刷新
+                            </button>
+                        </div>
+                        <div id="preferencesList" class="space-y-3">
+                            <!-- 偏好列表将在这里动态加载 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 推荐结果页面 -->
+            <div id="content-recommendations" class="tab-content hidden">
+                <div class="bg-white rounded-lg card-shadow p-6 mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-star mr-2"></i>最新推荐结果
+                        </h3>
+                        <div class="flex space-x-2">
+                            <button id="triggerBtn" onclick="triggerRecommendation()" class="btn-primary text-white px-4 py-2 rounded-md text-sm">
+                                <i class="fas fa-rocket mr-1"></i>手动触发推荐
+                            </button>
+                            <button onclick="loadRecommendations()" class="text-blue-500 hover:text-blue-700">
+                                <i class="fas fa-refresh mr-1"></i>刷新
+                            </button>
+                        </div>
+                    </div>
+                    <div id="recommendationsList">
+                        <!-- 推荐结果将在这里动态加载 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 历史记录页面 -->
+            <div id="content-history" class="tab-content hidden">
+                <div class="bg-white rounded-lg card-shadow p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-history mr-2"></i>推荐历史
+                        </h3>
+                        <div class="flex space-x-2">
+                            <input type="text" id="searchKeyword" placeholder="搜索关键词..." class="px-3 py-1 border border-gray-300 rounded text-sm">
+                            <button onclick="searchHistory()" class="text-blue-500 hover:text-blue-700">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="historyList">
+                        <!-- 历史记录将在这里动态加载 -->
+                    </div>
+                    <div id="historyPagination" class="mt-6 flex justify-center">
+                        <!-- 分页控件将在这里动态加载 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 通知设置页面 -->
+            <div id="content-settings" class="tab-content hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    <!-- 通知设置配置 -->
+                    <div class="bg-white rounded-lg card-shadow p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                            <i class="fas fa-cog mr-2"></i>通知设置配置
+                        </h3>
+
+                        <!-- 定时推荐设置 -->
+                        <div class="mb-6 p-4 border border-gray-200 rounded-lg">
+                            <h4 class="font-medium text-gray-800 mb-3 flex items-center">
+                                <i class="fas fa-clock mr-2 text-green-500"></i>定时推荐设置
+                            </h4>
+                            <div class="space-y-3">
+                                <div class="flex items-center">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="autoRecommendationsEnabled" class="mr-2">
+                                        <span class="text-sm text-gray-700">启用自动推荐</span>
+                                    </label>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">推荐间隔（小时）</label>
+                                    <select id="recommendationInterval" class="input-focus w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="1">每小时</option>
+                                        <option value="3">每3小时</option>
+                                        <option value="6">每6小时</option>
+                                        <option value="12">每12小时</option>
+                                        <option value="24" selected>每天</option>
+                                        <option value="48">每2天</option>
+                                        <option value="72">每3天</option>
+                                        <option value="168">每周</option>
+                                    </select>
+                                    <p class="text-xs text-gray-500 mt-1">设置自动推荐的执行频率</p>
+                                </div>
+                                <button onclick="saveScheduleSettings()" class="btn-primary text-white px-4 py-2 rounded-md text-sm">
+                                    <i class="fas fa-save mr-1"></i>保存定时设置
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 邮件设置 -->
+                        <div class="mb-6 p-4 border border-gray-200 rounded-lg">
+                            <h4 class="font-medium text-gray-800 mb-3 flex items-center">
+                                <i class="fas fa-envelope mr-2 text-blue-500"></i>邮件通知设置
+                            </h4>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">通知邮箱</label>
+                                    <input type="email" id="notificationEmail" class="input-focus w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="接收通知的邮箱地址">
+                                    <p class="text-xs text-gray-500 mt-1">如果为空，将使用注册邮箱接收通知</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">SMTP服务器</label>
+                                    <input type="text" id="smtpHost" class="input-focus w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="smtp.gmail.com">
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">端口</label>
+                                        <input type="number" id="smtpPort" class="input-focus w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="587">
+                                    </div>
+                                    <div>
+                                        <label class="flex items-center mt-6">
+                                            <input type="checkbox" id="smtpTls" class="mr-2">
+                                            <span class="text-sm text-gray-700">使用TLS</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+                                    <input type="email" id="smtpUsername" class="input-focus w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="your-email@gmail.com">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">密码/应用专用密码</label>
+                                    <input type="password" id="smtpPassword" class="input-focus w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="应用专用密码">
+                                    <div class="text-xs text-gray-500 bg-yellow-50 p-3 rounded mt-2">
+                                        <p><strong>Gmail用户必读：</strong></p>
+                                        <p>1. 启用两步验证</p>
+                                        <p>2. 生成应用专用密码：<a href="https://myaccount.google.com/apppasswords" target="_blank" class="underline text-blue-600">Google账户 → 安全 → 应用专用密码</a></p>
+                                        <p>3. 使用生成的16位密码（非Gmail登录密码）</p>
+                                    </div>
+                                </div>
+                                <button onclick="testEmailNotification()" class="btn-primary text-white px-4 py-2 rounded-md text-sm">
+                                    <i class="fas fa-paper-plane mr-1"></i>测试邮件发送
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Telegram设置 -->
+                        <div class="mb-6 p-4 border border-gray-200 rounded-lg">
+                            <h4 class="font-medium text-gray-800 mb-3 flex items-center">
+                                <i class="fab fa-telegram mr-2 text-blue-400"></i>Telegram通知设置
+                            </h4>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Bot Token</label>
+                                    <input type="password" id="telegramToken" class="input-focus w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Chat ID</label>
+                                    <input type="text" id="telegramChatId" class="input-focus w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="123456789">
+                                </div>
+                                <div class="text-xs text-gray-500 bg-gray-50 p-3 rounded">
+                                    <p><strong>获取Chat ID步骤：</strong></p>
+                                    <p>1. 搜索 @userinfobot 并发送 /start</p>
+                                    <p>2. 复制返回的 ID 数字</p>
+                                </div>
+                                <button onclick="testTelegramNotification()" class="btn-primary text-white px-4 py-2 rounded-md text-sm">
+                                    <i class="fas fa-paper-plane mr-1"></i>测试Telegram发送
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Slack设置 -->
+                        <div class="mb-6 p-4 border border-gray-200 rounded-lg">
+                            <h4 class="font-medium text-gray-800 mb-3 flex items-center">
+                                <i class="fab fa-slack mr-2 text-purple-500"></i>Slack通知设置
+                            </h4>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Webhook URL</label>
+                                    <input type="url" id="slackWebhook" class="input-focus w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://hooks.slack.com/services/...">
+                                </div>
+                                <div class="text-xs text-gray-500 bg-gray-50 p-3 rounded">
+                                    <p><strong>设置步骤：</strong></p>
+                                    <p>1. 在Slack中创建应用</p>
+                                    <p>2. 启用Incoming Webhooks</p>
+                                    <p>3. 复制Webhook URL</p>
+                                </div>
+                                <button onclick="testSlackNotification()" class="btn-primary text-white px-4 py-2 rounded-md text-sm">
+                                    <i class="fas fa-paper-plane mr-1"></i>测试Slack发送
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 企业微信设置 -->
+                        <div class="mb-6 p-4 border border-gray-200 rounded-lg">
+                            <h4 class="font-medium text-gray-800 mb-3 flex items-center">
+                                <i class="fab fa-weixin mr-2 text-green-500"></i>企业微信通知设置
+                            </h4>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Webhook URL</label>
+                                    <input type="url" id="wechatWebhook" class="input-focus w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...">
+                                </div>
+                                <div class="text-xs text-gray-500 bg-gray-50 p-3 rounded">
+                                    <p><strong>设置步骤：</strong></p>
+                                    <p>1. 在企业微信群中添加机器人</p>
+                                    <p>2. 复制机器人的Webhook地址</p>
+                                </div>
+                                <button onclick="testWechatNotification()" class="btn-primary text-white px-4 py-2 rounded-md text-sm">
+                                    <i class="fas fa-paper-plane mr-1"></i>测试企业微信发送
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 保存所有设置 -->
+                        <div class="pt-4 border-t border-gray-200">
+                            <button onclick="saveNotificationSettings()" class="w-full btn-primary text-white py-3 px-4 rounded-md">
+                                <i class="fas fa-save mr-2"></i>保存所有通知设置
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API设置页面 -->
+            <div id="content-api" class="tab-content hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- GitHub API 配置 -->
+                    <div class="bg-white rounded-lg card-shadow p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                            <i class="fab fa-github mr-2"></i>GitHub API 配置
+                        </h3>
+
+                        <div class="space-y-4">
+                            <!-- API Token 设置 -->
+                            <div class="p-4 border border-gray-200 rounded-lg">
+                                <h4 class="font-medium text-gray-800 mb-3 flex items-center">
+                                    <i class="fas fa-key mr-2 text-green-500"></i>API Token
+                                </h4>
+                                <div class="space-y-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">GitHub Personal Access Token</label>
+                                        <div class="relative">
+                                            <input type="password" id="githubToken" class="input-focus w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10" placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+                                            <button type="button" onclick="toggleTokenVisibility()" class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700">
+                                                <i id="tokenVisibilityIcon" class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                        <div class="mt-2 text-xs text-gray-500 space-y-1">
+                                            <p><strong>Token权限要求：</strong></p>
+                                            <p>• public_repo - 访问公共仓库</p>
+                                            <p>• repo (可选) - 访问私有仓库</p>
+                                            <p>• read:org (可选) - 读取组织信息</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex space-x-2">
+                                        <button onclick="testGitHubToken()" class="btn-primary text-white px-4 py-2 rounded-md text-sm flex-1">
+                                            <i class="fas fa-vial mr-1"></i>测试Token
+                                        </button>
+                                        <button onclick="saveGitHubToken()" class="bg-green-500 text-white px-4 py-2 rounded-md text-sm hover:bg-green-600 flex-1">
+                                            <i class="fas fa-save mr-1"></i>保存Token
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- API Base URL 设置 -->
+                            <div class="p-4 border border-gray-200 rounded-lg">
+                                <h4 class="font-medium text-gray-800 mb-3 flex items-center">
+                                    <i class="fas fa-globe mr-2 text-blue-500"></i>API Base URL
+                                </h4>
+                                <div class="space-y-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">GitHub API 基础URL</label>
+                                        <input type="url" id="githubBaseUrl" class="input-focus w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://api.github.com" value="https://api.github.com">
+                                        <p class="text-xs text-gray-500 mt-1">GitHub.com请使用: https://api.github.com<br>GitHub Enterprise请使用: https://your-domain/api/v3</p>
+                                    </div>
+                                    <button onclick="saveGitHubBaseUrl()" class="btn-primary text-white px-4 py-2 rounded-md text-sm w-full">
+                                        <i class="fas fa-save mr-1"></i>保存Base URL
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 快速获取Token指南 -->
+                            <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <h4 class="font-medium text-blue-800 mb-3 flex items-center">
+                                    <i class="fas fa-info-circle mr-2"></i>快速获取GitHub Token
+                                </h4>
+                                <div class="text-sm text-blue-700 space-y-2">
+                                    <p><strong>步骤：</strong></p>
+                                    <ol class="list-decimal list-inside space-y-1 ml-2">
+                                        <li>访问 <a href="https://github.com/settings/tokens" target="_blank" class="underline hover:text-blue-900">GitHub Settings → Developer settings → Personal access tokens</a></li>
+                                        <li>点击 "Generate new token (classic)"</li>
+                                        <li>设置Token描述，如 "GitHub Bot API Access"</li>
+                                        <li>选择权限: public_repo (必需)</li>
+                                        <li>点击 "Generate token" 并复制Token</li>
+                                        <li>将Token粘贴到上方输入框</li>
+                                    </ol>
+                                    <p class="mt-3 p-2 bg-yellow-100 border border-yellow-300 rounded text-yellow-800">
+                                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                                        <strong>重要：</strong>Token只显示一次，请立即复制保存！
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- API状态和使用情况 -->
+                    <div class="bg-white rounded-lg card-shadow p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                            <i class="fas fa-chart-line mr-2"></i>API 状态监控
+                        </h3>
+
+                        <!-- API连接状态 -->
+                        <div class="p-4 border border-gray-200 rounded-lg mb-4">
+                            <h4 class="font-medium text-gray-800 mb-3 flex items-center">
+                                <i class="fas fa-wifi mr-2 text-green-500"></i>连接状态
+                                <div id="apiStatus" class="ml-auto">
+                                    <span class="status-indicator online w-3 h-3 bg-gray-400 rounded-full inline-block"></span>
+                                    <span class="text-sm text-gray-500 ml-2">检测中...</span>
+                                </div>
+                            </h4>
+                            <div id="connectionInfo" class="text-sm text-gray-600 space-y-1">
+                                <div>用户: <span id="apiUser" class="font-mono">-</span></div>
+                                <div>Token范围: <span id="apiScopes" class="font-mono">-</span></div>
+                                <div>最后检测: <span id="lastCheck" class="font-mono">-</span></div>
+                            </div>
+                        </div>
+
+                        <!-- 速率限制状态 -->
+                        <div class="p-4 border border-gray-200 rounded-lg mb-4">
+                            <h4 class="font-medium text-gray-800 mb-3 flex items-center">
+                                <i class="fas fa-tachometer-alt mr-2 text-orange-500"></i>速率限制
+                            </h4>
+                            <div id="rateLimitInfo" class="space-y-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-gray-600">剩余请求数:</span>
+                                    <span id="rateLimitRemaining" class="font-mono text-sm font-medium">-</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-gray-600">总限制:</span>
+                                    <span id="rateLimitTotal" class="font-mono text-sm">-</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-gray-600">重置时间:</span>
+                                    <span id="rateLimitReset" class="font-mono text-sm">-</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div id="rateLimitBar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- API测试工具 -->
+                        <div class="p-4 border border-gray-200 rounded-lg">
+                            <h4 class="font-medium text-gray-800 mb-3 flex items-center">
+                                <i class="fas fa-flask mr-2 text-purple-500"></i>API 测试工具
+                            </h4>
+                            <div class="space-y-3">
+                                <div class="flex space-x-2">
+                                    <input type="text" id="testRepo" class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="输入仓库名，如: microsoft/vscode">
+                                    <button onclick="testRepoAccess()" class="btn-primary text-white px-4 py-2 rounded-md text-sm">
+                                        <i class="fas fa-search mr-1"></i>测试
+                                    </button>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button onclick="testSearchAPI()" class="btn-primary text-white px-3 py-2 rounded-md text-sm">
+                                        <i class="fas fa-search mr-1"></i>测试搜索
+                                    </button>
+                                    <button onclick="refreshRateLimit()" class="bg-gray-500 text-white px-3 py-2 rounded-md text-sm hover:bg-gray-600">
+                                        <i class="fas fa-sync mr-1"></i>刷新限制
+                                    </button>
+                                </div>
+
+                                <div id="testResults" class="mt-4 p-3 bg-gray-50 rounded-md text-sm font-mono hidden">
+                                    <div class="text-gray-600 mb-2">测试结果:</div>
+                                    <div id="testOutput" class="text-gray-800"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 消息提示 -->
+    <div id="message" class="fixed top-4 right-4 p-4 rounded-lg shadow-lg hidden z-50">
+        <div class="flex items-center">
+            <i id="messageIcon" class="mr-2"></i>
+            <span id="messageText"></span>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

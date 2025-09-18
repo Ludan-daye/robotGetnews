@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub 推荐系统 - 增强版</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .config-card {
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .config-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        .progress-bar {
+            transition: width 0.5s ease;
+        }
+        .log-item {
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-pending { background: #fef3c7; color: #d97706; }
+        .status-running { background: #dbeafe; color: #2563eb; }
+        .status-completed { background: #d1fae5; color: #065f46; }
+        .status-failed { background: #fee2e2; color: #dc2626; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-6">
+        <!-- 页面标题 -->
+        <div class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">
+                <i class="fab fa-github mr-3 text-blue-600"></i>
+                GitHub 推荐系统 - 配置级控制
+            </h1>
+            <p class="text-gray-600">按每个配置分别搜索、分析和推送项目推荐</p>
+        </div>
+
+        <!-- 控制面板 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-800">
+                    <i class="fas fa-control-panel mr-2 text-green-500"></i>
+                    推荐控制面板
+                </h2>
+                <div class="flex space-x-3">
+                    <button id="runAllBtn" onclick="runAllConfigurations()"
+                            class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition">
+                        <i class="fas fa-play mr-2"></i>运行所有配置
+                    </button>
+                    <button id="stopBtn" onclick="stopExecution()"
+                            class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition" disabled>
+                        <i class="fas fa-stop mr-2"></i>停止执行
+                    </button>
+                    <button onclick="refreshConfigurations()"
+                            class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition">
+                        <i class="fas fa-refresh mr-2"></i>刷新
+                    </button>
+                </div>
+            </div>
+
+            <!-- 全局进度条 -->
+            <div id="globalProgress" class="mb-4 hidden">
+                <div class="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>总体进度</span>
+                    <span id="progressText">0/0</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div id="progressBar" class="progress-bar bg-blue-500 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- 全局统计 -->
+            <div id="globalStats" class="grid grid-cols-2 md:grid-cols-4 gap-4 hidden">
+                <div class="text-center p-3 bg-blue-50 rounded-lg">
+                    <div class="text-2xl font-bold text-blue-600" id="totalRepos">0</div>
+                    <div class="text-sm text-blue-500">获取项目</div>
+                </div>
+                <div class="text-center p-3 bg-green-50 rounded-lg">
+                    <div class="text-2xl font-bold text-green-600" id="totalRecommendations">0</div>
+                    <div class="text-sm text-green-500">生成推荐</div>
+                </div>
+                <div class="text-center p-3 bg-yellow-50 rounded-lg">
+                    <div class="text-2xl font-bold text-yellow-600" id="totalNotifications">0</div>
+                    <div class="text-sm text-yellow-500">发送通知</div>
+                </div>
+                <div class="text-center p-3 bg-red-50 rounded-lg">
+                    <div class="text-2xl font-bold text-red-600" id="totalErrors">0</div>
+                    <div class="text-sm text-red-500">错误次数</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 配置列表 -->
+        <div id="configurationsList" class="space-y-6">
+            <!-- 配置卡片将在这里动态生成 -->
+        </div>
+
+        <!-- 实时日志 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mt-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-800">
+                    <i class="fas fa-terminal mr-2 text-purple-500"></i>
+                    实时执行日志
+                </h2>
+                <button onclick="clearLogs()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-trash mr-1"></i>清空日志
+                </button>
+            </div>
+            <div id="executionLogs" class="bg-gray-900 text-green-400 p-4 rounded-lg h-64 overflow-y-auto font-mono text-sm">
+                <div class="log-item">📅 [{{ new Date().toLocaleString() }}] 系统就绪，等待执行命令...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let configurations = [];
+        let isRunning = false;
+        let currentExecution = null;
+
+        // 模拟配置数据（实际使用时从API获取）
+        const mockConfigurations = [
+            {
+                id: 1,
+                name: "AI/机器学习项目",
+                keywords: ["machine learning", "artificial intelligence", "deep learning"],
+                languages: ["Python", "R"],
+                min_stars: 100,
+                notification_channels: ["email", "telegram"],
+                enabled: true,
+                status: "pending"
+            },
+            {
+                id: 2,
+                name: "Web开发技术栈",
+                keywords: ["react", "vue", "angular", "nodejs"],
+                languages: ["JavaScript", "TypeScript"],
+                min_stars: 50,
+                notification_channels: ["slack"],
+                enabled: true,
+                status: "pending"
+            },
+            {
+                id: 3,
+                name: "DevOps工具",
+                keywords: ["docker", "kubernetes", "ci/cd"],
+                languages: ["Go", "Python", "Shell"],
+                min_stars: 30,
+                notification_channels: ["wechat", "email"],
+                enabled: true,
+                status: "pending"
+            }
+        ];
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadConfigurations();
+        });
+
+        // 加载配置列表
+        function loadConfigurations() {
+            configurations = [...mockConfigurations];
+            renderConfigurations();
+            addLog("📋 加载了 " + configurations.length + " 个配置");
+        }
+
+        // 渲染配置卡片
+        function renderConfigurations() {
+            const container = document.getElementById('configurationsList');
+            container.innerHTML = '';
+
+            configurations.forEach(config => {
+                const card = createConfigurationCard(config);
+                container.appendChild(card);
+            });
+        }
+
+        // 创建配置卡片
+        function createConfigurationCard(config) {
+            const div = document.createElement('div');
+            div.className = 'config-card rounded-lg shadow-lg p-6';
+            div.id = `config-${config.id}`;
+
+            div.innerHTML = `
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">${config.name}</h3>
+                        <p class="text-sm text-gray-600">配置ID: ${config.id}</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="status-badge status-${config.status}" id="status-${config.id}">
+                            ${getStatusText(config.status)}
+                        </span>
+                        <button onclick="runSingleConfiguration(${config.id})"
+                                class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition"
+                                id="runBtn-${config.id}">
+                            <i class="fas fa-play mr-1"></i>运行
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">关键词:</label>
+                        <div class="flex flex-wrap gap-1 mt-1">
+                            ${config.keywords.map(keyword =>
+                                `<span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">${keyword}</span>`
+                            ).join('')}
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">编程语言:</label>
+                        <div class="flex flex-wrap gap-1 mt-1">
+                            ${config.languages.map(lang =>
+                                `<span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">${lang}</span>`
+                            ).join('')}
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">最小Stars:</label>
+                        <span class="text-gray-800"> ${config.min_stars}</span>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">通知渠道:</label>
+                        <div class="flex flex-wrap gap-1 mt-1">
+                            ${config.notification_channels.map(channel =>
+                                `<span class="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">${channel}</span>`
+                            ).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 执行进度 -->
+                <div id="progress-${config.id}" class="hidden mb-4">
+                    <div class="text-sm text-gray-600 mb-2">执行进度:</div>
+                    <div class="space-y-2">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 rounded-full bg-gray-300" id="step1-${config.id}"></div>
+                            <span class="text-sm" id="step1-text-${config.id}">搜索GitHub项目</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 rounded-full bg-gray-300" id="step2-${config.id}"></div>
+                            <span class="text-sm" id="step2-text-${config.id}">分析和评分</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 rounded-full bg-gray-300" id="step3-${config.id}"></div>
+                            <span class="text-sm" id="step3-text-${config.id}">生成推荐</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 rounded-full bg-gray-300" id="step4-${config.id}"></div>
+                            <span class="text-sm" id="step4-text-${config.id}">发送通知</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 执行结果 -->
+                <div id="results-${config.id}" class="hidden">
+                    <div class="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                            <div class="text-lg font-bold text-blue-600" id="repos-${config.id}">0</div>
+                            <div class="text-xs text-gray-500">找到项目</div>
+                        </div>
+                        <div>
+                            <div class="text-lg font-bold text-green-600" id="recommendations-${config.id}">0</div>
+                            <div class="text-xs text-gray-500">生成推荐</div>
+                        </div>
+                        <div>
+                            <div class="text-lg font-bold text-purple-600" id="notifications-${config.id}">0</div>
+                            <div class="text-xs text-gray-500">发送通知</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            return div;
+        }
+
+        // 获取状态文本
+        function getStatusText(status) {
+            const statusMap = {
+                'pending': '待执行',
+                'running': '执行中',
+                'completed': '已完成',
+                'failed': '失败'
+            };
+            return statusMap[status] || status;
+        }
+
+        // 运行所有配置
+        async function runAllConfigurations() {
+            if (isRunning) return;
+
+            isRunning = true;
+            document.getElementById('runAllBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('globalProgress').classList.remove('hidden');
+            document.getElementById('globalStats').classList.remove('hidden');
+
+            addLog("🚀 开始执行所有配置的推荐任务...");
+
+            const enabledConfigs = configurations.filter(config => config.enabled);
+            let completedCount = 0;
+
+            for (const config of enabledConfigs) {
+                if (!isRunning) break; // 检查是否被停止
+
+                await runConfiguration(config);
+                completedCount++;
+
+                // 更新全局进度
+                const progress = (completedCount / enabledConfigs.length) * 100;
+                document.getElementById('progressBar').style.width = progress + '%';
+                document.getElementById('progressText').textContent = `${completedCount}/${enabledConfigs.length}`;
+            }
+
+            isRunning = false;
+            document.getElementById('runAllBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+
+            addLog("✅ 所有配置执行完成！");
+        }
+
+        // 运行单个配置
+        async function runSingleConfiguration(configId) {
+            const config = configurations.find(c => c.id === configId);
+            if (!config) return;
+
+            await runConfiguration(config);
+        }
+
+        // 执行配置
+        async function runConfiguration(config) {
+            const configId = config.id;
+
+            // 更新状态
+            updateConfigStatus(configId, 'running');
+            document.getElementById(`runBtn-${configId}`).disabled = true;
+            document.getElementById(`progress-${configId}`).classList.remove('hidden');
+
+            addLog(`🔄 开始处理配置: ${config.name}`);
+
+            try {
+                // 模拟执行步骤
+                await executeStep(configId, 1, '搜索GitHub项目', async () => {
+                    // 模拟API调用
+                    await delay(2000);
+                    const repoCount = Math.floor(Math.random() * 50) + 10;
+                    document.getElementById(`repos-${configId}`).textContent = repoCount;
+                    addLog(`  📦 找到 ${repoCount} 个相关项目`);
+                    return repoCount;
+                });
+
+                await executeStep(configId, 2, '分析和评分', async () => {
+                    await delay(1500);
+                    addLog(`  ⭐ 完成项目评分和过滤`);
+                });
+
+                await executeStep(configId, 3, '生成推荐', async () => {
+                    await delay(1000);
+                    const recCount = Math.floor(Math.random() * 10) + 1;
+                    document.getElementById(`recommendations-${configId}`).textContent = recCount;
+                    addLog(`  🎯 生成 ${recCount} 条推荐`);
+                    return recCount;
+                });
+
+                await executeStep(configId, 4, '发送通知', async () => {
+                    await delay(800);
+                    const notificationCount = config.notification_channels.length;
+                    document.getElementById(`notifications-${configId}`).textContent = notificationCount;
+                    addLog(`  📨 通知已发送到: ${config.notification_channels.join(', ')}`);
+                    return notificationCount;
+                });
+
+                // 更新状态为完成
+                updateConfigStatus(configId, 'completed');
+                document.getElementById(`results-${configId}`).classList.remove('hidden');
+                addLog(`✅ 配置 "${config.name}" 执行完成`);
+
+                // 更新全局统计
+                updateGlobalStats();
+
+            } catch (error) {
+                updateConfigStatus(configId, 'failed');
+                addLog(`❌ 配置 "${config.name}" 执行失败: ${error.message}`);
+            } finally {
+                document.getElementById(`runBtn-${configId}`).disabled = false;
+            }
+        }
+
+        // 执行步骤
+        async function executeStep(configId, stepNum, stepName, action) {
+            const stepElement = document.getElementById(`step${stepNum}-${configId}`);
+            const stepTextElement = document.getElementById(`step${stepNum}-text-${configId}`);
+
+            // 标记为进行中
+            stepElement.className = 'w-4 h-4 rounded-full bg-blue-500 animate-pulse';
+            stepTextElement.textContent = stepName + ' (进行中...)';
+
+            try {
+                await action();
+
+                // 标记为完成
+                stepElement.className = 'w-4 h-4 rounded-full bg-green-500';
+                stepTextElement.textContent = stepName + ' ✓';
+            } catch (error) {
+                // 标记为失败
+                stepElement.className = 'w-4 h-4 rounded-full bg-red-500';
+                stepTextElement.textContent = stepName + ' ✗';
+                throw error;
+            }
+        }
+
+        // 更新配置状态
+        function updateConfigStatus(configId, status) {
+            const config = configurations.find(c => c.id === configId);
+            if (config) {
+                config.status = status;
+                const statusElement = document.getElementById(`status-${configId}`);
+                statusElement.className = `status-badge status-${status}`;
+                statusElement.textContent = getStatusText(status);
+            }
+        }
+
+        // 更新全局统计
+        function updateGlobalStats() {
+            let totalRepos = 0;
+            let totalRecommendations = 0;
+            let totalNotifications = 0;
+            let totalErrors = 0;
+
+            configurations.forEach(config => {
+                if (config.status === 'completed') {
+                    totalRepos += parseInt(document.getElementById(`repos-${config.id}`).textContent) || 0;
+                    totalRecommendations += parseInt(document.getElementById(`recommendations-${config.id}`).textContent) || 0;
+                    totalNotifications += parseInt(document.getElementById(`notifications-${config.id}`).textContent) || 0;
+                } else if (config.status === 'failed') {
+                    totalErrors++;
+                }
+            });
+
+            document.getElementById('totalRepos').textContent = totalRepos;
+            document.getElementById('totalRecommendations').textContent = totalRecommendations;
+            document.getElementById('totalNotifications').textContent = totalNotifications;
+            document.getElementById('totalErrors').textContent = totalErrors;
+        }
+
+        // 停止执行
+        function stopExecution() {
+            isRunning = false;
+            document.getElementById('runAllBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            addLog("⏹️ 执行已停止");
+        }
+
+        // 刷新配置
+        function refreshConfigurations() {
+            loadConfigurations();
+            addLog("🔄 配置列表已刷新");
+        }
+
+        // 添加日志
+        function addLog(message) {
+            const logsContainer = document.getElementById('executionLogs');
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-item';
+            logEntry.innerHTML = `📅 [${new Date().toLocaleString()}] ${message}`;
+
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        // 清空日志
+        function clearLogs() {
+            const logsContainer = document.getElementById('executionLogs');
+            logsContainer.innerHTML = '<div class="log-item">📅 [' + new Date().toLocaleString() + '] 日志已清空</div>';
+        }
+
+        // 延时函数
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+    </script>
+</body>
+</html>

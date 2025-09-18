@@ -52,7 +52,7 @@ github-bot-webui/
 
 1. **克隆项目**
 ```bash
-git clone [<repository-url>](https://github.com/Ludan-daye/robotGetnews)
+git clone https://github.com/Ludan-daye/robotGetnews
 cd github-bot-webui
 ```
 
